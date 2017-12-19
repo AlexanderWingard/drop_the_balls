@@ -58,23 +58,35 @@ Example.basic = function() {
     });
 
     var now = Date.now();
-    var data = Immutable.Range(0, 10).map(function(i) {
-        return Immutable.Map({"timestamp" : now - 6000 + (i * 2000)});
+    var fast_forward_duration = 2000;
+    var data = Immutable.Range(0, 20).map(function(i) {
+        return Immutable.Map({"timestamp" : now - 12000 + (i * 2000)});
     }).toList();
+    var my_now = data.first().get("timestamp");
+    var ff_speed = (now - my_now) / (fast_forward_duration / 250);
+    var fast_forward = true;
 
     var tick = function() {
-        var now = Date.now();
+        if(fast_forward) {
+            my_now += ff_speed;
+            actual_now = Date.now();
+            if(my_now > actual_now) {
+                fast_forward = false;
+            }
+        } else {
+            my_now = Date.now();
+        }
         data = data.map(function(d) {
-            if(d.get("timestamp") <= now && !(d.has("body"))) {
+            if(d.get("timestamp") <= my_now && !(d.has("body"))) {
                 var b = Bodies.circle(380 + Math.random() * 40, 50, 25, {restitution: 0.8});
                 World.add(world, b);
                 return d.set("body", b);
             }
             return d;
         });
+        setTimeout(tick, fast_forward ? 100 : 1000);
     };
     tick();
-    setInterval(tick, 1000);
 
 
     return {
