@@ -66,6 +66,14 @@ Example.basic = function() {
     var ff_speed = (now - my_now) / (fast_forward_duration / 250);
     var fast_forward = true;
 
+    var d = data
+            .toKeyedSeq()
+            .filter((x) => x.get("timestamp") <= now)
+            .keySeq()
+            .takeLast(3)
+            .toSet();
+    d = data.keySeq().toSet().subtract(d);
+    console.log(d.toJS());
     var tick = function() {
         if(fast_forward) {
             my_now += ff_speed;
