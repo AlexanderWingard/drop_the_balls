@@ -59,11 +59,13 @@ Example.basic = function() {
 
     var now = Date.now();
     var fast_forward_duration = 2000;
+    var fast_forward_tick = 250;
     var data = Immutable.Range(0, 20).map(function(i) {
         return Immutable.Map({"timestamp" : now - 12000 + (i * 2000)});
     }).toList();
+    console.log(data.map(function(d, i) { return i; }).toJS());
     var my_now = data.first().get("timestamp");
-    var ff_speed = (now - my_now) / (fast_forward_duration / 250);
+    var ff_speed = (now - my_now) / (fast_forward_duration / fast_forward_tick);
     var fast_forward = true;
 
     var d = data
@@ -92,7 +94,7 @@ Example.basic = function() {
             }
             return d;
         });
-        setTimeout(tick, fast_forward ? 100 : 1000);
+        setTimeout(tick, fast_forward ? fast_forward_tick : 1000);
     };
     tick();
 
