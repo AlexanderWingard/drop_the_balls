@@ -58,42 +58,63 @@ Example.basic = function() {
     });
 
     var now = Date.now();
-    var fast_forward_duration = 2000;
-    var fast_forward_tick = 250;
-    var data = Immutable.Range(0, 20).map(function(i) {
-        return Immutable.Map({"timestamp" : now - 12000 + (i * 2000)});
-    }).toList();
-    console.log(data.map(function(d, i) { return i; }).toJS());
-    var my_now = data.first().get("timestamp");
+    var max_balls = 150;
+    var d = Immutable
+        .fromJS(big_data)
+        .map((x) => {
+            return x.update("timestamp", (date) => (new Date(date)).getTime());
+        });
+    var last_timestamp = d.last().get("timestamp");
+    var data = d.map((x) => {
+        return x.update("timestamp", (ts) => now + 37000 - (last_timestamp - ts));
+    });
+    var fast_forward_duration = 1000;
+    var fast_forward_tick = 1000;
+    var color = d3.scaleOrdinal(d3.schemeCategory20);
+    var my_now_ix = data.findIndex((x) => x.get("timestamp") >= (now - fast_forward_duration));
+    var my_now = data.get(Math.max(0, my_now_ix - max_balls)).get("timestamp");
     var ff_speed = (now - my_now) / (fast_forward_duration / fast_forward_tick);
     var fast_forward = true;
+    var n = 0;
 
-    var d = data
-            .toKeyedSeq()
-            .filter((x) => x.get("timestamp") <= now)
-            .keySeq()
-            .takeLast(3)
-            .toSet();
-    d = data.keySeq().toSet().subtract(d);
-    console.log(d.toJS());
     var tick = function() {
         if(fast_forward) {
             my_now += ff_speed;
             actual_now = Date.now();
             if(my_now > actual_now) {
                 fast_forward = false;
+                setTimeout(tick, 1000);
+                console.log("End of fast forward");
+                return;
             }
         } else {
             my_now = Date.now();
         }
-        data = data.map(function(d) {
-            if(d.get("timestamp") <= my_now && !(d.has("body"))) {
-                var b = Bodies.circle(380 + Math.random() * 40, 50, 25, {restitution: 0.8});
+
+        var keyed = data
+            .toKeyedSeq();
+        var select = keyed
+            .filter((x) => x.get("timestamp") <= my_now)
+            .takeLast(max_balls);
+        data = select
+            .filter((x) => !x.has("body"))
+            .reduce((a, v, k) => {
+                var b = Bodies.circle(50 + Math.random() * 700,
+                                      30 + Math.random() * 50,
+                                      5,
+                                      {restitution: 0.8,
+                                       render: {fillStyle: color(v.get("branch"))}});
+                if(!fast_forward)
+                    console.log("Adding " + k);
                 World.add(world, b);
-                return d.set("body", b);
-            }
-            return d;
-        });
+                return a.setIn([k, "body"], b);
+            }, data);
+        data = data.toKeyedSeq()
+            .filter((x, i) => (!select.has(i) && x.has("body")))
+            .reduce((a, v, k) => {
+                World.remove(world, v.get("body"));
+                return a.deleteIn([k, "body"]);
+            }, data);
         setTimeout(tick, fast_forward ? fast_forward_tick : 1000);
     };
     tick();
