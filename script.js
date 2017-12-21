@@ -4,12 +4,14 @@ Example.basic = function() {
     var Engine = Matter.Engine,
         Render = Matter.Render,
         Runner = Matter.Runner,
+        Events = Matter.Events,
         Composites = Matter.Composites,
         Common = Matter.Common,
         MouseConstraint = Matter.MouseConstraint,
         Mouse = Matter.Mouse,
         World = Matter.World,
-        Bodies = Matter.Bodies;
+        Bodies = Matter.Bodies,
+        Body = Matter.Body;
 
     var engine = Engine.create(),
         world = engine.world;
@@ -21,6 +23,7 @@ Example.basic = function() {
             width: Math.min(document.documentElement.clientWidth, 800),
             height: Math.min(document.documentElement.clientHeight, 600),
             showAngleIndicator: false,
+            showSleeping: true,
             wireframes : false
         }
     });
@@ -56,9 +59,11 @@ Example.basic = function() {
         min: { x: 0, y: 0 },
         max: { x: 800, y: 600 }
     });
+    engine.enableSleeping = true;
+    engine.constraintIterations = 3;
 
     var now = Date.now();
-    var max_balls = 150;
+    var max_balls = 2000;
     var d = Immutable
         .fromJS(big_data)
         .map((x) => {
@@ -69,8 +74,8 @@ Example.basic = function() {
         return x.update("timestamp", (ts) => now + 37000 - (last_timestamp - ts));
     });
     var fast_forward_duration = 1000;
-    var fast_forward_tick = 1000;
-    var color = d3.scaleOrdinal(d3.schemeCategory20);
+    var fast_forward_tick = 200;
+    var color = d3.scaleOrdinal(d3.schemeCategory20b);
     var my_now_ix = data.findIndex((x) => x.get("timestamp") >= (now - fast_forward_duration));
     var my_now = data.get(Math.max(0, my_now_ix - max_balls)).get("timestamp");
     var ff_speed = (now - my_now) / (fast_forward_duration / fast_forward_tick);
@@ -78,6 +83,12 @@ Example.basic = function() {
     var n = 0;
 
     var tick = function() {
+        if(!data
+           .filter((d) => d.has("body"))
+           .every((d) => d.get("body").isStatic)) {
+            setTimeout(tick, 100);
+            return;
+        }
         if(fast_forward) {
             my_now += ff_speed;
             actual_now = Date.now();
@@ -91,6 +102,7 @@ Example.basic = function() {
             my_now = Date.now();
         }
 
+        document.getElementById("label").innerHTML = new Date(my_now);
         var keyed = data
             .toKeyedSeq();
         var select = keyed
@@ -98,23 +110,28 @@ Example.basic = function() {
             .takeLast(max_balls);
         data = select
             .filter((x) => !x.has("body"))
+            .take(100)
             .reduce((a, v, k) => {
                 var b = Bodies.circle(50 + Math.random() * 700,
                                       30 + Math.random() * 50,
-                                      5,
-                                      {restitution: 0.8,
-                                       render: {fillStyle: color(v.get("branch"))}});
+                                      3,
+                                      {//restitution: 0.8,
+                                          sleepThreshold: 10,
+                                          //slop:0,
+                                          render: {fillStyle: color(v.get("branch"))}});
+                Events.on(b, "sleepStart", (x) =>  {Matter.Body.setStatic(x.source, true);});
+                Events.on(b, "sleepEnd", (x) =>  {Matter.Body.setStatic(x.source, false);});
                 if(!fast_forward)
                     console.log("Adding " + k);
                 World.add(world, b);
                 return a.setIn([k, "body"], b);
             }, data);
-        data = data.toKeyedSeq()
-            .filter((x, i) => (!select.has(i) && x.has("body")))
-            .reduce((a, v, k) => {
-                World.remove(world, v.get("body"));
-                return a.deleteIn([k, "body"]);
-            }, data);
+        // data = data.toKeyedSeq()
+        //     .filter((x, i) => (!select.has(i) && x.has("body")))
+        //     .reduce((a, v, k) => {
+        //         World.remove(world, v.get("body"));
+        //         return a.deleteIn([k, "body"]);
+        //     }, data);
         setTimeout(tick, fast_forward ? fast_forward_tick : 1000);
     };
     tick();
